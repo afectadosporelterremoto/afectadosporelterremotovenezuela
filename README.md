@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Afectados por el Terremoto Venezuela
 
-## Getting Started
+Plataforma humanitaria de registro, localización de desaparecidos, reporte de personas rescatadas, centralización de números de emergencia y testimonios ciudadanos en respuesta al sismo en Venezuela.
 
-First, run the development server:
+Desarrollado bajo principios de seguridad, confidencialidad y rapidez móvil-primero.
 
+---
+
+## 🛠️ Stack Tecnológico
+
+- **Framework**: Next.js con TypeScript (App Router).
+- **Estilos**: Tailwind CSS (Tailwind v4) para una UI sobria, solidaria y profesional.
+- **Base de Datos y Seguridad**: Supabase (PostgreSQL) con RLS (Row Level Security) y enmascaramiento selectivo de datos.
+- **Autenticación**: Supabase Auth (control de acceso administrativo).
+- **Almacenamiento**: Supabase Storage para fotografías en bucket `photos`.
+- **Despliegue**: Vercel.
+
+---
+
+## 📦 Características de Seguridad e Integridad de Datos
+
+1. **Enmascaramiento de Datos Sensibles**: Para proteger la integridad física y privacidad de los ciudadanos registrados, las cédulas y los números de teléfono se ocultan parcialmente al público (ej. `V-12.XXX.456`, `0414-XXX-5678`).
+2. **Confidencialidad Geográfica**: Las direcciones exactas y puntos de referencia están ocultos para usuarios no administradores.
+3. **RLS (Row Level Security)**: Todas las tablas tienen políticas RLS configuradas. El público solo puede insertar en los formularios y leer campos aprobados. El acceso total y la moderación se reservan para los administradores registrados en la tabla `admin_users`.
+4. **Protección contra Spam**: Formularios protegidos con campo *honeypot* invisible para desviar el tráfico de robots automatizados.
+5. **Estabilidad local**: En caso de que las variables de entorno de Supabase no estén configuradas o utilicen marcadores de posición, la plataforma entra en un **Modo de Simulación** con datos ficticios para permitir pruebas funcionales completas.
+
+---
+
+## 🚀 Instrucciones para Instalar y Correr Localmente
+
+### 1. Clonar e Instalar dependencias
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configurar Variables de Entorno
+Crea un archivo `.env.local` en la raíz del proyecto tomando como referencia el archivo `.env.example`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key-de-supabase
+SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key-de-supabase
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Correr en Servidor de Desarrollo
+```bash
+npm run dev
+```
+Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 💾 Configuración de Base de Datos en Supabase
 
-To learn more about Next.js, take a look at the following resources:
+Ejecuta el archivo [schema.sql](file:///schema.sql) en el editor de SQL de tu panel de Supabase. El script realizará las siguientes acciones:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Creará las tablas necesarias:
+   - `admin_users` (Roles y accesos administrativos).
+   - `affected_people` (Personas damnificadas o necesitadas).
+   - `missing_people` (Reportes activos de desaparecidos).
+   - `rescued_people` (Personas localizadas o albergadas).
+   - `stories` (Testimonios y relatos del blog).
+   - `emergency_contacts` (Directorio telefónico por estado).
+   - `information_reports` (Reportes confidenciales de datos útiles).
+2. Activará **RLS (Row Level Security)** en cada tabla.
+3. Creará las políticas de acceso para lectura, escritura y administración.
+4. Creará el bucket público de almacenamiento `photos` en Supabase Storage para guardar las fotos cargadas.
+5. Insertará contactos telefónicos oficiales venezolanos reales a nivel nacional.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🌐 Configuración del Dominio en Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Para vincular la plataforma al dominio oficial **afectadosporelterremotovenezuela.com** en Vercel:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Crear el proyecto en Vercel**:
+   - Conecta tu repositorio de GitHub en Vercel y crea un nuevo proyecto.
+   - En la sección **Environment Variables**, añade las tres variables de Supabase (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+   - Haz clic en **Deploy**.
+2. **Añadir el Dominio**:
+   - Dirígete a la pestaña **Settings** > **Domains** en tu panel de Vercel.
+   - Escribe `afectadosporelterremotovenezuela.com` y haz clic en **Add**.
+3. **Configurar los DNS**:
+   - Vercel te suministrará los registros DNS requeridos.
+   - Ve al registrador de tu dominio (Namecheap, GoDaddy, etc.) y añade los siguientes registros:
+     - **Registro A**: Nombre `@` que apunte a la IP de Vercel `76.76.21.21`.
+     - **Registro CNAME**: Nombre `www` que apunte a `cname.vercel-dns.com`.
+4. **Validación SSL**:
+   - Vercel generará y renovará automáticamente un certificado SSL Let's Encrypt de forma gratuita para tu dominio.
