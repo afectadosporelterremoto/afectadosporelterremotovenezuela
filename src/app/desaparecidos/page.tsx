@@ -35,7 +35,10 @@ export default async function DesaparecidosPage({ searchParams }: DesaparecidosP
 
     const { data, error } = await query.order("created_at", { ascending: false });
     if (error) dbError = error.message;
-    else if (data) missingList = data;
+    else if (data) {
+      // Excluir registros pendientes de revisión
+      missingList = data.filter((p: any) => !p.notes?.includes("[PENDING REVIEW]"));
+    }
   } catch (err: any) {
     dbError = err.message;
   }

@@ -22,13 +22,14 @@ export default async function Home() {
     const supabase = await createClient();
     
     const [affectedRes, missingRes, rescuedRes] = await Promise.all([
-      supabase.from("affected_people").select("*", { count: "exact", head: true }),
-      supabase.from("missing_people").select("*", { count: "exact", head: true }).eq("status", "missing"),
+      supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("is_public", true),
+      supabase.from("missing_people").select("notes").eq("status", "missing"),
       supabase.from("rescued_people").select("*", { count: "exact", head: true }),
     ]);
 
     stats.affected = affectedRes.count || 0;
-    stats.missing = missingRes.count || 0;
+    // Excluir desaparecidos que están en revisión
+    stats.missing = (missingRes.data || []).filter(p => !p.notes?.includes("[PENDING REVIEW]")).length;
     stats.rescued = rescuedRes.count || 0;
   } catch (err) {
     console.error("Error al obtener estadísticas del home:", err);

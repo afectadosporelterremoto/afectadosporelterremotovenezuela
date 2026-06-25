@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient, createAdminClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { normalizeString, cleanCedula, cleanPhone, getWordTokens } from "@/utils/normalize";
 
 // Función auxiliar para validar administrador en Server Actions
 async function verifyAdmin(): Promise<boolean> {
@@ -25,6 +26,203 @@ async function verifyAdmin(): Promise<boolean> {
     return true;
   } catch (e) {
     return false;
+  }
+}
+
+/**
+ * Comprueba si una persona ya existe en el sistema (búsqueda cruzada)
+ */
+export async function checkPersonExistingStatus(data: {
+  fullName?: string;
+  cedula?: string;
+  phone?: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const searchCedula = cleanCedula(data.cedula);
+    const searchName = normalizeString(data.fullName);
+    const searchPhone = cleanPhone(data.phone);
+
+    if (!searchCedula && !searchName && !searchPhone) {
+      return { exists: false };
+    }
+
+    // 1. Coincidencia exacta por cédula
+    if (searchCedula) {
+      const [{ data: affectedByCedula }, { data: missingByCedula }] = await Promise.all([
+        supabase.from("affected_people").select("id, full_name, status, state, city, exact_address").eq("cedula", data.cedula).limit(5),
+        supabase.from("missing_people").select("id, full_name, status, last_seen_location").eq("cedula", data.cedula).limit(5),
+      ]);
+
+      if (affectedByCedula && affectedByCedula.length > 0) {
+        const record = affectedByCedula[0];
+        const type = record.status === "Hospitalizado" ? "hospitalizado" : "afectado";
+        return {
+          exists: true,
+          type,
+          record: {
+            id: record.id,
+            full_name: record.full_name,
+            status: record.status,
+            location: `${record.city}, ${record.state}`,
+            hospital: record.status === "Hospitalizado" ? record.exact_address : undefined,
+          },
+          confidence: "high",
+          message: record.status === "Hospitalizado"
+            ? `Esta persona ya aparece registrada como ingresada en el hospital: ${record.exact_address || "No especificado"}.`
+            : "Esta persona ya aparece registrada como afectada en el sistema."
+        };
+      }
+
+      if (missingByCedula && missingByCedula.length > 0) {
+        const record = missingByCedula[0];
+        const type = record.status === "hospitalized" ? "hospitalizado" : (record.status === "located" || record.status === "rescued" ? "rescatado" : "desaparecido");
+        return {
+          exists: true,
+          type,
+          record: {
+            id: record.id,
+            full_name: record.full_name,
+            status: record.status,
+            location: record.last_seen_location,
+          },
+          confidence: "high",
+          message: record.status === "hospitalized"
+            ? "Esta persona ya aparece registrada como hospitalizada."
+            : (record.status === "located" || record.status === "rescued"
+              ? "Esta persona ya aparece registrada como rescatada o localizada."
+              : "Esta persona ya aparece registrada como desaparecida. Revisa el registro antes de crear uno nuevo.")
+        };
+      }
+    }
+
+    // 2. Coincidencia por nombre normalizado (en memoria sobre pool limitado de candidatos)
+    const nameTokens = getWordTokens(data.fullName || "");
+    let affectedQuery = supabase.from("affected_people").select("id, full_name, cedula, phone, status, state, city, exact_address");
+    let missingQuery = supabase.from("missing_people").select("id, full_name, cedula, reporter_phone, status, last_seen_location");
+    let rescuedQuery = supabase.from("rescued_people").select("id, full_name, description, rescued_location, hospital_or_shelter");
+
+    const [{ data: affectedPeople }, { data: missingPeople }, { data: rescuedPeople }] = await Promise.all([
+      affectedQuery.limit(500),
+      missingQuery.limit(500),
+      rescuedQuery.limit(500),
+    ]);
+
+    if (searchName) {
+      if (affectedPeople) {
+        for (const record of affectedPeople) {
+          const normRecordName = normalizeString(record.full_name);
+          if (normRecordName === searchName || (normRecordName.includes(searchName) && searchName.length > 8) || (searchName.includes(normRecordName) && normRecordName.length > 8)) {
+            const type = record.status === "Hospitalizado" ? "hospitalizado" : "afectado";
+            return {
+              exists: true,
+              type,
+              record: {
+                id: record.id,
+                full_name: record.full_name,
+                status: record.status,
+                location: `${record.city}, ${record.state}`,
+                hospital: record.status === "Hospitalizado" ? record.exact_address : undefined,
+              },
+              confidence: "high",
+              message: record.status === "Hospitalizado"
+                ? `Esta persona ya aparece registrada como ingresada en el hospital: ${record.exact_address || "No especificado"}.`
+                : "Esta persona ya aparece registrada como afectada en el sistema."
+            };
+          }
+        }
+      }
+
+      if (missingPeople) {
+        for (const record of missingPeople) {
+          const normRecordName = normalizeString(record.full_name);
+          if (normRecordName.includes("persona por identificar")) continue;
+          if (normRecordName === searchName || (normRecordName.includes(searchName) && searchName.length > 8) || (searchName.includes(normRecordName) && normRecordName.length > 8)) {
+            const type = record.status === "hospitalized" ? "hospitalizado" : (record.status === "located" || record.status === "rescued" ? "rescatado" : "desaparecido");
+            return {
+              exists: true,
+              type,
+              record: {
+                id: record.id,
+                full_name: record.full_name,
+                status: record.status,
+                location: record.last_seen_location,
+              },
+              confidence: "high",
+              message: record.status === "hospitalized"
+                ? "Esta persona ya aparece registrada como hospitalizada."
+                : (record.status === "located" || record.status === "rescued"
+                  ? "Esta persona ya aparece registrada como rescatada o localizada."
+                  : "Esta persona ya aparece registrada como desaparecida. Revisa el registro antes de crear uno nuevo.")
+            };
+          }
+        }
+      }
+
+      if (rescuedPeople) {
+        for (const record of rescuedPeople) {
+          const normRecordName = normalizeString(record.full_name);
+          if (normRecordName.includes("desconocido")) continue;
+          if (normRecordName === searchName || (normRecordName.includes(searchName) && searchName.length > 8) || (searchName.includes(normRecordName) && normRecordName.length > 8)) {
+            return {
+              exists: true,
+              type: "rescatado",
+              record: {
+                id: record.id,
+                full_name: record.full_name,
+                status: "Rescatado",
+                location: record.rescued_location || record.hospital_or_shelter || "No especificada",
+              },
+              confidence: "high",
+              message: "Esta persona ya aparece registrada como rescatada o localizada."
+            };
+          }
+        }
+      }
+    }
+
+    // 3. Coincidencia por teléfono como apoyo
+    if (searchPhone) {
+      if (affectedPeople) {
+        const match = affectedPeople.find((p) => cleanPhone(p.phone) === searchPhone);
+        if (match) {
+          const type = match.status === "Hospitalizado" ? "hospitalizado" : "afectado";
+          return {
+            exists: true,
+            type,
+            record: {
+              id: match.id,
+              full_name: match.full_name,
+              status: match.status,
+              location: `${match.city}, ${match.state}`,
+            },
+            confidence: "medium",
+            message: `Esta persona comparte el mismo teléfono con un registro de: ${match.full_name} (${match.status}).`
+          };
+        }
+      }
+      if (missingPeople) {
+        const match = missingPeople.find((p) => cleanPhone(p.reporter_phone) === searchPhone);
+        if (match) {
+          return {
+            exists: true,
+            type: "desaparecido",
+            record: {
+              id: match.id,
+              full_name: match.full_name,
+              status: "Desaparecido",
+            },
+            confidence: "medium",
+            message: `Esta persona comparte el mismo teléfono de contacto con la búsqueda de: ${match.full_name}.`
+          };
+        }
+      }
+    }
+
+    return { exists: false };
+  } catch (err: any) {
+    console.error("Error in checkPersonExistingStatus:", err);
+    return { exists: false, error: err.message };
   }
 }
 
@@ -55,6 +253,7 @@ export async function registerAffectedPerson(data: {
   registeredByPhone: string;
   consent: boolean;
   websiteHoneypot?: string; // Honeypot antispam
+  bypassDuplicateCheck?: boolean;
 }) {
   // 1. Validar honeypot
   if (data.websiteHoneypot) {
@@ -64,6 +263,23 @@ export async function registerAffectedPerson(data: {
   // 2. Validaciones básicas en servidor
   if (!data.fullName.trim() || !data.state || !data.city || !data.status || !data.registeredByName.trim() || !data.registeredByPhone.trim() || !data.consent) {
     return { error: "Por favor complete todos los campos obligatorios y acepte el aviso de privacidad." };
+  }
+
+  // 3. Verificación de duplicados
+  if (!data.bypassDuplicateCheck) {
+    const check = await checkPersonExistingStatus({
+      fullName: data.fullName,
+      cedula: data.cedula,
+      phone: data.phone,
+    });
+    if (check.exists) {
+      return {
+        error: "DUPLICATE_FOUND",
+        message: check.message,
+        type: check.type,
+        record: check.record,
+      };
+    }
   }
 
   try {
@@ -123,6 +339,7 @@ export async function registerMissingPerson(data: {
   lastContactAt?: string;
   notes?: string;
   websiteHoneypot?: string;
+  bypassDuplicateCheck?: boolean;
 }) {
   if (data.websiteHoneypot) {
     return { success: true };
@@ -130,6 +347,23 @@ export async function registerMissingPerson(data: {
 
   if (!data.fullName.trim() || !data.lastSeenLocation.trim() || !data.reporterName.trim() || !data.reporterPhone.trim()) {
     return { error: "Por favor complete los campos requeridos (nombre, última ubicación conocida y datos de contacto)." };
+  }
+
+  // Verificación de duplicados
+  if (!data.bypassDuplicateCheck) {
+    const check = await checkPersonExistingStatus({
+      fullName: data.fullName,
+      cedula: data.cedula,
+      phone: data.reporterPhone,
+    });
+    if (check.exists) {
+      return {
+        error: "DUPLICATE_FOUND",
+        message: check.message,
+        type: check.type,
+        record: check.record,
+      };
+    }
   }
 
   try {
@@ -177,9 +411,26 @@ export async function registerRescuedPerson(data: {
   reportedByPhone?: string;
   rescuedAt?: string;
   websiteHoneypot?: string;
+  bypassDuplicateCheck?: boolean;
 }) {
   if (data.websiteHoneypot) {
     return { success: true };
+  }
+
+  // Verificación de duplicados
+  if (data.fullName && !data.bypassDuplicateCheck) {
+    const check = await checkPersonExistingStatus({
+      fullName: data.fullName,
+      phone: data.reportedByPhone,
+    });
+    if (check.exists) {
+      return {
+        error: "DUPLICATE_FOUND",
+        message: check.message,
+        type: check.type,
+        record: check.record,
+      };
+    }
   }
 
   try {
@@ -464,3 +715,83 @@ export async function deleteMissingPerson(id: string) {
     return { error: err.message };
   }
 }
+
+/**
+ * Modifica la visibilidad pública de una persona afectada o hospitalizada
+ */
+export async function toggleAffectedPersonPublic(id: string, isPublic: boolean) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) return { error: "Acceso no autorizado." };
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("affected_people")
+      .update({ is_public: isPublic })
+      .eq("id", id);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/buscar");
+    revalidatePath(`/buscar/${id}`);
+    revalidatePath("/hospitalizados");
+    revalidatePath("/admin/hospitalizados");
+    revalidatePath("/admin/afectados");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Verifica si el usuario actual es administrador (para uso del lado del cliente)
+ */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  return await verifyAdmin();
+}
+
+/**
+ * Registra información adicional sobre un afectado o desaparecido existente
+ */
+export async function submitInformationReport(data: {
+  relatedType: "affected" | "missing" | "rescued";
+  relatedId: string;
+  reporterName: string;
+  reporterPhone: string;
+  message: string;
+  websiteHoneypot?: string;
+}) {
+  if (data.websiteHoneypot) {
+    return { success: true };
+  }
+
+  if (!data.reporterName.trim() || !data.reporterPhone.trim() || !data.message.trim()) {
+    return { error: "Por favor complete todos los campos requeridos." };
+  }
+
+  try {
+    const supabase = await createClient();
+    
+    const { error } = await supabase
+      .from("information_reports")
+      .insert({
+        related_type: data.relatedType,
+        related_id: data.relatedId,
+        reporter_name: data.reporterName.trim(),
+        reporter_phone: data.reporterPhone.trim(),
+        message: data.message.trim(),
+      });
+
+    if (error) {
+      console.error("Error BD information_reports:", error.message);
+      return { error: `Error de base de datos: ${error.message}` };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Excepción en reportar información adicional:", err);
+    return { error: "Ocurrió un error inesperado al enviar la información." };
+  }
+}
+
+

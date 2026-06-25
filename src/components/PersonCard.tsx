@@ -19,6 +19,7 @@ interface PersonCardProps {
     situation_description?: string;
     person_photo_url?: string;
     created_at: string;
+    type?: string;
   };
 }
 
@@ -91,7 +92,17 @@ export default function PersonCard({ person }: PersonCardProps) {
           alt={person.full_name}
           className="h-full w-full object-cover"
         />
-        <div className="absolute top-3 right-3">
+        <div className="absolute top-3 right-3 flex flex-col items-end space-y-1">
+          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${
+            person.type === "desaparecido" ? "bg-red-600 text-white border-red-700 shadow-xs" :
+            person.type === "hospitalizado" ? "bg-blue-600 text-white border-blue-700 shadow-xs" :
+            person.type === "rescatado" ? "bg-emerald-600 text-white border-emerald-700 shadow-xs" :
+            "bg-slate-700 text-white border-slate-800 shadow-xs"
+          }`}>
+            {person.type === "desaparecido" ? "Desaparecido" :
+             person.type === "hospitalizado" ? "Hospitalizado" :
+             person.type === "rescatado" ? "Rescatado" : "Afectado"}
+          </span>
           <StatusBadge status={person.status} />
         </div>
       </div>

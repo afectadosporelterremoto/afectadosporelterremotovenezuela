@@ -16,6 +16,7 @@ export default function Header() {
     { name: "Registrar Afectado", href: "/registrar-afectado" },
     { name: "Desaparecidos", href: "/desaparecidos" },
     { name: "Rescatados", href: "/rescatados" },
+    { name: "Hospitalizados", href: "/hospitalizados" },
     { name: "Historias", href: "/historias" },
     { name: "Emergencias", href: "/emergencias" },
   ];

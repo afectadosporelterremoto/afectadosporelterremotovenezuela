@@ -21,6 +21,7 @@ export default function SearchFilters() {
   const [cedula, setCedula] = useState(searchParams.get("cedula") || "");
   const [state, setState] = useState(searchParams.get("estado") || "");
   const [status, setStatus] = useState(searchParams.get("status") || "");
+  const [type, setType] = useState(searchParams.get("tipo") || "");
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +31,7 @@ export default function SearchFilters() {
     if (cedula.trim()) params.set("cedula", cedula.trim());
     if (state) params.set("estado", state);
     if (status) params.set("status", status);
+    if (type) params.set("tipo", type);
 
     router.push(`/buscar?${params.toString()}`);
   };
@@ -39,6 +41,7 @@ export default function SearchFilters() {
     setCedula("");
     setState("");
     setStatus("");
+    setType("");
     router.push("/buscar");
   };
 
@@ -46,7 +49,7 @@ export default function SearchFilters() {
     <form onSubmit={handleSearch} className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs space-y-4">
       <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Filtros de Búsqueda</h3>
       
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {/* Nombre */}
         <div>
           <label htmlFor="search-name" className="block text-xs font-semibold text-gray-600 mb-1">Nombre Completo</label>
@@ -86,6 +89,23 @@ export default function SearchFilters() {
             {VENEZUELAN_STATES.map((st) => (
               <option key={st} value={st}>{st}</option>
             ))}
+          </select>
+        </div>
+
+        {/* Tipo de registro */}
+        <div>
+          <label htmlFor="search-type" className="block text-xs font-semibold text-gray-600 mb-1">Tipo de Registro</label>
+          <select
+            id="search-type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#0B1F3A] focus:outline-hidden"
+          >
+            <option value="">Todos los tipos</option>
+            <option value="afectado">Afectado</option>
+            <option value="desaparecido">Desaparecido</option>
+            <option value="hospitalizado">Hospitalizado</option>
+            <option value="rescatado">Rescatado / Localizado</option>
           </select>
         </div>
 

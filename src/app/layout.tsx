@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import WelcomeModal from "@/components/WelcomeModal";
 
 // Cargar fuente Inter para estética premium
 const inter = Inter({
@@ -40,6 +41,7 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
+        <WelcomeModal />
         <Header />
         <main className="flex-1 flex flex-col">{children}</main>
         <Footer />

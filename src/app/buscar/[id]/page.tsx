@@ -11,7 +11,6 @@ import {
   Shield, 
   Calendar, 
   Info, 
-  User, 
   AlertTriangle 
 } from "lucide-react";
 import PrivacyNotice from "@/components/PrivacyNotice";
@@ -27,12 +26,13 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
 
   let person: any = null;
   let isAdmin = false;
-  let errorMsg = null;
+  let recordType = "afectado"; // 'afectado' | 'desaparecido' | 'hospitalizado' | 'rescatado'
+  let unifiedPerson: any = {};
 
   try {
     const supabase = await createClient();
     
-    // Verificar si es administrador
+    // Verify Admin Status
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: adminUser } = await supabase
@@ -45,23 +45,97 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
       }
     }
 
-    // Buscar a la persona (bypass RLS si es admin, de lo contrario PostgREST aplica RLS)
-    const { data, error } = await supabase
+    // 1. Try fetching from affected_people
+    const { data: affectedData } = await supabase
       .from("affected_people")
       .select("*")
       .eq("id", id)
       .single();
 
-    if (error) {
-      errorMsg = error.message;
+    if (affectedData) {
+      person = affectedData;
+      recordType = affectedData.status === "Hospitalizado" ? "hospitalizado" : "afectado";
+      unifiedPerson = {
+        id: affectedData.id,
+        full_name: affectedData.full_name,
+        cedula: affectedData.cedula,
+        phone: affectedData.phone,
+        state: affectedData.state,
+        city: affectedData.city,
+        municipality: affectedData.municipality,
+        parish: affectedData.parish,
+        exact_address: affectedData.exact_address,
+        reference_point: affectedData.reference_point,
+        latitude: affectedData.latitude,
+        longitude: affectedData.longitude,
+        status: affectedData.status,
+        photo_url: affectedData.person_photo_url,
+        place_photo_url: affectedData.place_photo_url,
+        situation_description: affectedData.situation_description,
+        registered_by_name: affectedData.registered_by_name,
+        registered_by_phone: affectedData.registered_by_phone,
+        created_at: affectedData.created_at,
+      };
     } else {
-      person = data;
+      // 2. Try fetching from missing_people
+      const { data: missingData } = await supabase
+        .from("missing_people")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (missingData) {
+        person = missingData;
+        recordType = missingData.status === "hospitalized" ? "hospitalizado" : (missingData.status === "located" || missingData.status === "rescued" ? "rescatado" : "desaparecido");
+        unifiedPerson = {
+          id: missingData.id,
+          full_name: missingData.full_name,
+          cedula: missingData.cedula,
+          phone: undefined,
+          state: "Varios",
+          city: missingData.last_seen_location,
+          exact_address: missingData.last_seen_location,
+          status: recordType === "hospitalizado" ? "Hospitalizado" : (recordType === "rescatado" ? "Rescatado" : "Sin localizar"),
+          photo_url: missingData.photo_url,
+          situation_description: `Desaparecido/a. Edad aprox: ${missingData.approximate_age || "No indicada"}. Rasgos físicos: ${missingData.physical_description || "No detallados"}. Vestimenta: ${missingData.clothes_description || "No detallada"}. Notas: ${missingData.notes || ""}`,
+          registered_by_name: missingData.reporter_name,
+          registered_by_phone: missingData.reporter_phone,
+          created_at: missingData.created_at,
+        };
+      } else {
+        // 3. Try fetching from rescued_people
+        const { data: rescuedData } = await supabase
+          .from("rescued_people")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (rescuedData) {
+          person = rescuedData;
+          recordType = "rescatado";
+          unifiedPerson = {
+            id: rescuedData.id,
+            full_name: rescuedData.full_name || "Persona Desconocida",
+            cedula: undefined,
+            phone: undefined,
+            state: "Varios",
+            city: rescuedData.rescued_location || "Desconocida",
+            exact_address: rescuedData.rescued_location || rescuedData.hospital_or_shelter,
+            status: "Rescatado",
+            photo_url: rescuedData.photo_url,
+            situation_description: `Localizado/a con éxito. Salud: ${rescuedData.health_status || "No especificada"}. Refugio/Hospital: ${rescuedData.hospital_or_shelter || "No detallado"}. Detalles: ${rescuedData.description || ""}`,
+            registered_by_name: rescuedData.reported_by_name,
+            registered_by_phone: rescuedData.reported_by_phone,
+            created_at: rescuedData.created_at,
+          };
+        }
+      }
     }
   } catch (err: any) {
-    errorMsg = err.message;
+    console.error("Error loading detail:", err);
   }
 
-  // Mocks de fallback para testing local si no existe en BD
+  // Demonstration Fallback mock check if not found
   if (!person && id.startsWith("demo-")) {
     const mockPeople = [
       {
@@ -82,6 +156,7 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
         registered_by_name: "Teresa Medina (Hermana)",
         registered_by_phone: "0412-5556789",
         created_at: new Date().toISOString(),
+        type: "afectado",
       },
       {
         id: "demo-2",
@@ -101,27 +176,19 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
         registered_by_name: "Carlos Castro (Hijo)",
         registered_by_phone: "0414-9998877",
         created_at: new Date().toISOString(),
+        type: "rescatado",
       },
-      {
-        id: "demo-3",
-        full_name: "Andrés Eloy Blanco",
-        cedula: "V-20345678",
-        phone: "0416-5551234",
-        state: "Miranda",
-        city: "Guarenas",
-        municipality: "Plaza",
-        parish: "Guarenas",
-        exact_address: "Urbanización Vicente Emilio Sojo, Bloque 4, Piso 2, Apto A",
-        reference_point: "Detrás del CDI",
-        status: "Hospitalizado",
-        situation_description: "Ingresado con traumatismo en el Hospital del Seguro Social de Guarenas. Requiere insumos médicos.",
-        person_photo_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop",
-        place_photo_url: "https://images.unsplash.com/photo-1584824486509-112e4181ff6b?q=80&w=300&auto=format&fit=crop",
-        registered_by_name: "María Blanco (Esposa)",
-        registered_by_phone: "0416-9993322",
-        created_at: new Date().toISOString(),
-      },
-    ].find((p) => p.id === id);
+    ];
+    
+    const mock = mockPeople.find((p) => p.id === id);
+    if (mock) {
+      person = mock;
+      recordType = mock.type;
+      unifiedPerson = {
+        ...mock,
+        photo_url: mock.person_photo_url,
+      };
+    }
   }
 
   if (!person) {
@@ -132,7 +199,7 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
 
   return (
     <div className="py-8 px-4 md:py-12 max-w-4xl mx-auto w-full space-y-6 flex-1">
-      {/* Botón de Retorno */}
+      {/* Retorno */}
       <Link
         href="/buscar"
         className="inline-flex items-center space-x-1 text-sm font-semibold text-gray-600 hover:text-[#0B1F3A]"
@@ -141,22 +208,32 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
         <span>Volver a la búsqueda</span>
       </Link>
 
-      {/* Tarjeta de Detalle Principal */}
+      {/* Tarjeta de Detalle */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xs">
-        {/* Cabecera / Cover */}
+        {/* Cabecera */}
         <div className="bg-[#0B1F3A] text-white p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <StatusBadge status={person.status} />
+              <span className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-bold tracking-wider uppercase ${
+                recordType === "desaparecido" ? "bg-red-600 text-white border-red-700" :
+                recordType === "hospitalizado" ? "bg-blue-600 text-white border-blue-700" :
+                recordType === "rescatado" ? "bg-emerald-600 text-white border-emerald-700" :
+                "bg-slate-700 text-white border-slate-800"
+              }`}>
+                {recordType === "desaparecido" ? "Desaparecido" :
+                 recordType === "hospitalizado" ? "Hospitalizado" :
+                 recordType === "rescatado" ? "Rescatado" : "Afectado"}
+              </span>
+              <StatusBadge status={unifiedPerson.status} />
               {isAdmin && (
                 <span className="rounded-md bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-[#F2C94C] uppercase">
                   Vista Admin
                 </span>
               )}
             </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight">{person.full_name}</h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight">{unifiedPerson.full_name}</h1>
             <p className="text-xs text-gray-300">
-              ID de Registro: <span className="font-mono">{person.id}</span>
+              ID de Registro: <span className="font-mono">{unifiedPerson.id}</span>
             </p>
           </div>
         </div>
@@ -164,108 +241,81 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
         {/* Contenido */}
         <div className="p-6 md:p-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Fotos */}
+            {/* Foto */}
             <div className="md:col-span-1 space-y-4">
               <div className="aspect-square w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={person.person_photo_url || defaultPhoto}
-                  alt={person.full_name}
+                  src={unifiedPerson.photo_url || defaultPhoto}
+                  alt={unifiedPerson.full_name}
                   className="h-full w-full object-cover"
                 />
               </div>
-              <p className="text-[11px] text-center text-gray-500 font-semibold uppercase tracking-wider">Foto del Afectado</p>
+              <p className="text-[11px] text-center text-gray-500 font-semibold uppercase tracking-wider">Fotografía registrada</p>
 
-              {person.place_photo_url && (
+              {unifiedPerson.place_photo_url && (
                 <>
                   <div className="aspect-square w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 mt-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={person.place_photo_url}
+                      src={unifiedPerson.place_photo_url}
                       alt="Ubicación afectada"
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-[11px] text-center text-gray-500 font-semibold uppercase tracking-wider">Foto de Estructura/Lugar</p>
+                  <p className="text-[11px] text-center text-gray-500 font-semibold uppercase tracking-wider">Foto del Lugar</p>
                 </>
               )}
             </div>
 
-            {/* Información Detallada */}
+            {/* Detalles */}
             <div className="md:col-span-2 space-y-6">
               {/* Información Personal */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2">Información Personal</h3>
-                
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="block text-xs font-medium text-gray-500">Cédula</span>
                     <span className="font-bold text-gray-800">
-                      {isAdmin ? person.cedula || "No registrada" : maskCedula(person.cedula)}
+                      {isAdmin ? unifiedPerson.cedula || "No registrada" : maskCedula(unifiedPerson.cedula)}
                     </span>
                   </div>
                   <div>
                     <span className="block text-xs font-medium text-gray-500">Teléfono</span>
                     <span className="font-bold text-gray-800">
-                      {isAdmin ? person.phone || "No registrado" : maskPhone(person.phone)}
+                      {isAdmin ? unifiedPerson.phone || "No registrado" : maskPhone(unifiedPerson.phone)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Información Geográfica */}
+              {/* Ubicación */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2">Última Ubicación Conocida</h3>
-                
+                <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2">Ubicación y Localización</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="block text-xs font-medium text-gray-500">Estado</span>
-                    <span className="font-semibold text-gray-800">{person.state}</span>
+                    <span className="font-semibold text-gray-800">{unifiedPerson.state || "No especificado"}</span>
                   </div>
                   <div>
-                    <span className="block text-xs font-medium text-gray-500">Ciudad</span>
-                    <span className="font-semibold text-gray-800">{person.city}</span>
+                    <span className="block text-xs font-medium text-gray-500">Ciudad / Lugar</span>
+                    <span className="font-semibold text-gray-800">{unifiedPerson.city || "No especificada"}</span>
                   </div>
-                  {person.municipality && (
-                    <div>
-                      <span className="block text-xs font-medium text-gray-500">Municipio</span>
-                      <span className="font-semibold text-gray-800">{person.municipality}</span>
-                    </div>
-                  )}
-                  {person.parish && (
-                    <div>
-                      <span className="block text-xs font-medium text-gray-500">Parroquia</span>
-                      <span className="font-semibold text-gray-800">{person.parish}</span>
-                    </div>
-                  )}
                 </div>
 
                 <div className="text-sm pt-2">
-                  <span className="block text-xs font-medium text-gray-500">Dirección Exacta</span>
+                  <span className="block text-xs font-medium text-gray-500">Dirección o Lugar del Suceso</span>
                   <p className="font-semibold text-gray-800 bg-gray-50 p-3 rounded-lg border border-gray-100 mt-1">
-                    {maskAddress(person.exact_address, isAdmin)}
+                    {maskAddress(unifiedPerson.exact_address, isAdmin)}
                   </p>
                 </div>
 
-                {person.reference_point && (
+                {unifiedPerson.reference_point && (
                   <div className="text-sm">
                     <span className="block text-xs font-medium text-gray-500">Punto de Referencia</span>
                     <p className="font-semibold text-gray-800 bg-gray-50 p-3 rounded-lg border border-gray-100 mt-1">
-                      {isAdmin ? person.reference_point : "Oculto por motivos de seguridad"}
+                      {isAdmin ? unifiedPerson.reference_point : "Oculto por seguridad"}
                     </p>
-                  </div>
-                )}
-
-                {(person.latitude || person.longitude) && isAdmin && (
-                  <div className="grid grid-cols-2 gap-4 text-sm pt-2">
-                    <div>
-                      <span className="block text-xs font-medium text-gray-500">Latitud</span>
-                      <span className="font-mono text-gray-800 font-semibold">{person.latitude}</span>
-                    </div>
-                    <div>
-                      <span className="block text-xs font-medium text-gray-500">Longitud</span>
-                      <span className="font-mono text-gray-800 font-semibold">{person.longitude}</span>
-                    </div>
                   </div>
                 )}
               </div>
@@ -274,36 +324,36 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2">Descripción de la Situación</h3>
                 <p className="text-sm text-gray-700 leading-relaxed bg-[#0B1F3A]/5 p-4 rounded-lg border border-[#0B1F3A]/10 italic">
-                  "{person.situation_description || "No se ha suministrado una descripción específica para este registro."}"
+                  "{unifiedPerson.situation_description || "Sin descripción detallada de la situación."}"
                 </p>
               </div>
 
-              {/* Datos de quien registró */}
+              {/* Informante */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2">Datos de Quien Registró</h3>
+                <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-2">Datos del Reportante (Contacto)</h3>
                 {isAdmin ? (
                   <div className="grid grid-cols-2 gap-4 text-sm bg-amber-50/50 border border-amber-200 p-4 rounded-lg">
                     <div>
-                      <span className="block text-xs font-medium text-gray-500">Nombre de Registro</span>
-                      <span className="font-bold text-gray-800">{person.registered_by_name}</span>
+                      <span className="block text-xs font-medium text-gray-500">Nombre de Contacto</span>
+                      <span className="font-bold text-gray-800">{unifiedPerson.registered_by_name || "No indicado"}</span>
                     </div>
                     <div>
-                      <span className="block text-xs font-medium text-gray-500">Teléfono de Registro</span>
-                      <span className="font-bold text-gray-800">{person.registered_by_phone}</span>
+                      <span className="block text-xs font-medium text-gray-500">Teléfono de Contacto</span>
+                      <span className="font-bold text-gray-800">{unifiedPerson.registered_by_phone || "No indicado"}</span>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-150">
                     <Info size={16} className="text-[#0B1F3A]" />
-                    <span>Los datos del informante están protegidos. Solo el personal de rescate y administradores tienen acceso.</span>
+                    <span>Los datos del contacto familiar se encuentran protegidos. Solo personal autorizado tiene acceso.</span>
                   </div>
                 )}
               </div>
 
-              {/* Fecha de Registro */}
+              {/* Fecha */}
               <div className="flex items-center space-x-1.5 text-xs text-gray-400">
                 <Calendar size={14} />
-                <span>Fecha del Registro: {new Date(person.created_at).toLocaleString("es-VE")}</span>
+                <span>Fecha del Registro: {new Date(unifiedPerson.created_at).toLocaleString("es-VE")}</span>
               </div>
             </div>
           </div>
