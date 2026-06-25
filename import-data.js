@@ -249,7 +249,7 @@ async function processTxtFile(filePath) {
 }
 
 /**
- * Inserta paciente hospitalizado en la base de datos
+ * Inserta paciente hospitalizado en la base de datos (tanto en afectados como en desaparecidos)
  */
 async function insertHospitalizedPatient(patient) {
   // Comprobar duplicado en memoria local
@@ -274,67 +274,63 @@ async function insertHospitalizedPatient(patient) {
     hospital: patient.hospital,
   });
 
-  // Comprobar coincidencia en la Base de Datos (búsqueda cruzada)
-  const dbMatch = await checkExistingPersonInDb(patient.name, patient.cedula);
-  if (dbMatch.exists) {
-    summary.totalUpdatedExisting++;
-    console.log(`[VERIFICACIÓN CRUZADA] Coincidencia en BD para ${patient.name} en tabla ${dbMatch.table}`);
-    
-    // Actualizar registro existente e insertar report de información conectada
-    if (dbMatch.table === "affected_people") {
-      await supabase
-        .from("affected_people")
-        .update({
-          status: "Hospitalizado",
-          exact_address: `Hospitalizado en: ${patient.hospital}`,
-          situation_description: `${dbMatch.record.situation_description || ""}\n[UPDATE IMPORT] Reportado hospitalizado en: ${patient.hospital}. Línea original: "${patient.originalLine}"`
-        })
-        .eq("id", dbMatch.record.id);
+  const searchName = normalizeString(patient.name);
+  const searchCedula = patient.cedula ? patient.cedula.replace(/[^0-9VEveJjGg]/g, "").toUpperCase() : "";
 
-      await supabase.from("information_reports").insert({
-        related_type: "affected",
-        related_id: dbMatch.record.id,
-        reporter_name: "Importador Automático",
-        reporter_phone: "0800-EMERGENCIA",
-        message: `Información de importación masiva: Persona reportada como Hospitalizada en ${patient.hospital}. Línea original: "${patient.originalLine}"`
-      });
-    } 
-    else if (dbMatch.table === "missing_people") {
-      await supabase
-        .from("missing_people")
-        .update({
-          status: "hospitalized",
-          notes: `${dbMatch.record.notes || ""}\n[UPDATE IMPORT] Localizado ingresado en hospital ${patient.hospital}.`
-        })
-        .eq("id", dbMatch.record.id);
+  // --- 1. PROCESAR EN affected_people (para lista pública de hospitalizados) ---
+  let affectedRecordId = null;
+  let affectedExists = false;
 
-      await supabase.from("information_reports").insert({
-        related_type: "missing",
-        related_id: dbMatch.record.id,
-        reporter_name: "Importador Automático",
-        reporter_phone: "0800-EMERGENCIA",
-        message: `Localización en importación masiva: Persona desaparecida ingresada en hospital ${patient.hospital}. Línea original: "${patient.originalLine}"`
-      });
+  if (searchCedula) {
+    const { data } = await supabase
+      .from("affected_people")
+      .select("id, situation_description")
+      .eq("cedula", patient.cedula)
+      .limit(1);
+    if (data && data.length > 0) {
+      affectedRecordId = data[0].id;
+      affectedExists = true;
     }
-    else if (dbMatch.table === "rescued_people") {
-      await supabase.from("information_reports").insert({
-        related_type: "rescued",
-        related_id: dbMatch.record.id,
-        reporter_name: "Importador Automático",
-        reporter_phone: "0800-EMERGENCIA",
-        message: `Ingreso hospitalario en importación masiva: Persona rescatada trasladada a ${patient.hospital}. Línea original: "${patient.originalLine}"`
-      });
-    }
-    return;
   }
 
-  summary.totalHospitalizedDetected++;
-  summary.totalPendingReview++;
-  summary.totalImportedNew++;
+  if (!affectedExists && searchName) {
+    const { data } = await supabase
+      .from("affected_people")
+      .select("id, full_name, situation_description")
+      .ilike("full_name", `%${patient.name}%`);
+    if (data) {
+      for (const p of data) {
+        if (normalizeString(p.full_name) === searchName) {
+          affectedRecordId = p.id;
+          affectedExists = true;
+          break;
+        }
+      }
+    }
+  }
 
-  // Insertar en Supabase.
-  try {
-    const { error } = await supabase
+  if (affectedExists) {
+    console.log(`[Afectados] Coincidencia en BD para ${patient.name}. Actualizando...`);
+    await supabase
+      .from("affected_people")
+      .update({
+        status: "Hospitalizado",
+        exact_address: `Hospitalizado en: ${patient.hospital}`,
+        is_public: true,
+        situation_description: `[UPDATE IMPORT] Reportado hospitalizado en: ${patient.hospital}. Línea original: "${patient.originalLine}"`
+      })
+      .eq("id", affectedRecordId);
+
+    await supabase.from("information_reports").insert({
+      related_type: "affected",
+      related_id: affectedRecordId,
+      reporter_name: "Importador Automático",
+      reporter_phone: "0800-EMERGENCIA",
+      message: `Información de importación masiva: Persona reportada como Hospitalizada en ${patient.hospital}. Línea original: "${patient.originalLine}"`
+    });
+  } else {
+    console.log(`[Afectados] Insertando nuevo: ${patient.name}...`);
+    await supabase
       .from("affected_people")
       .insert({
         full_name: patient.name,
@@ -347,17 +343,78 @@ async function insertHospitalizedPatient(patient) {
         registered_by_name: "Importador Automático",
         registered_by_phone: "0800-EMERGENCIA",
         consent: true,
-        is_public: false, // Oculto hasta revisión
+        is_public: true,
       });
-
-    if (error) {
-      console.warn(`[DB WARNING] No se pudo insertar en DB real: ${error.message}.`);
-    } else {
-      console.log(`[IMPORTADO] Hospitalizado: ${patient.name}`);
-    }
-  } catch (err) {
-    console.error("Excepción en inserción de hospitalizado:", err.message);
   }
+
+  // --- 2. PROCESAR EN missing_people (para mostrar en desaparecidos) ---
+  let missingRecordId = null;
+  let missingExists = false;
+
+  if (searchCedula) {
+    const { data } = await supabase
+      .from("missing_people")
+      .select("id, notes")
+      .eq("cedula", patient.cedula)
+      .limit(1);
+    if (data && data.length > 0) {
+      missingRecordId = data[0].id;
+      missingExists = true;
+    }
+  }
+
+  if (!missingExists && searchName) {
+    const { data } = await supabase
+      .from("missing_people")
+      .select("id, full_name, notes")
+      .ilike("full_name", `%${patient.name}%`);
+    if (data) {
+      for (const p of data) {
+        if (normalizeString(p.full_name) === searchName) {
+          missingRecordId = p.id;
+          missingExists = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (missingExists) {
+    console.log(`[Desaparecidos] Coincidencia en BD para ${patient.name}. Actualizando...`);
+    await supabase
+      .from("missing_people")
+      .update({
+        status: "hospitalized",
+        last_seen_location: `Hospitalizado en: ${patient.hospital}`,
+        notes: `[UPDATE IMPORT] Localizado ingresado en hospital ${patient.hospital}.`
+      })
+      .eq("id", missingRecordId);
+
+    await supabase.from("information_reports").insert({
+      related_type: "missing",
+      related_id: missingRecordId,
+      reporter_name: "Importador Automático",
+      reporter_phone: "0800-EMERGENCIA",
+      message: `Localización en importación masiva: Persona desaparecida ingresada en hospital ${patient.hospital}. Línea original: "${patient.originalLine}"`
+    });
+  } else {
+    console.log(`[Desaparecidos] Insertando nuevo: ${patient.name}...`);
+    await supabase
+      .from("missing_people")
+      .insert({
+        full_name: patient.name,
+        cedula: patient.cedula || null,
+        approximate_age: patient.age,
+        last_seen_location: `Hospitalizado en: ${patient.hospital}`,
+        status: "hospitalized",
+        reporter_name: "Importador Automático",
+        reporter_phone: "0800-EMERGENCIA",
+        notes: `[IMPORTADO] Paciente ingresado tras el sismo. Línea original: "${patient.originalLine}"`,
+      });
+  }
+
+  summary.totalHospitalizedDetected++;
+  summary.totalImportedNew++;
 }
 
 /**
@@ -457,7 +514,7 @@ async function processImage(imageName, imagePath) {
         clothes_description: "Ver cartel adjunto.",
         reporter_name: "Importador Automático de Carteles",
         reporter_phone: "0412-5550000",
-        notes: `[PENDING REVIEW] Registro importado de cartel de WhatsApp: ${imageName}. Requiere transcripción manual de datos mediante OCR o revisión visual de la imagen en Supabase Storage.`,
+        notes: `[IMPORTADO] Registro importado de cartel de WhatsApp: ${imageName}. Requiere transcripción manual de datos mediante OCR o revisión visual de la imagen en Supabase Storage.`,
         status: "missing",
       });
 
@@ -500,9 +557,15 @@ async function startImport() {
       .from("missing_people")
       .delete()
       .eq("reporter_name", "Importador Automático de Carteles");
+
+    const { error: err3 } = await supabase
+      .from("missing_people")
+      .delete()
+      .eq("reporter_name", "Importador Automático");
       
     if (err1) console.warn("Advertencia al limpiar affected_people:", err1.message);
-    if (err2) console.warn("Advertencia al limpiar missing_people:", err2.message);
+    if (err2) console.warn("Advertencia al limpiar missing_people (carteles):", err2.message);
+    if (err3) console.warn("Advertencia al limpiar missing_people (hospitalizados):", err3.message);
   } catch (e) {
     console.warn("Excepción al limpiar base de datos:", e.message);
   }

@@ -27,7 +27,7 @@ export default async function DesaparecidosPage({ searchParams }: DesaparecidosP
 
   try {
     const supabase = await createClient();
-    let query = supabase.from("missing_people").select("*").eq("status", "missing");
+    let query = supabase.from("missing_people").select("*").in("status", ["missing", "hospitalized"]);
 
     if (searchName) {
       query = query.ilike("full_name", `%${searchName}%`);
@@ -163,7 +163,7 @@ export default async function DesaparecidosPage({ searchParams }: DesaparecidosP
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute top-3 right-3">
-                      <StatusBadge status="Sin localizar" />
+                      <StatusBadge status={person.status} />
                     </div>
                   </div>
 

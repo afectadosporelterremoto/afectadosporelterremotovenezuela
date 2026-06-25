@@ -16,21 +16,33 @@ export const revalidate = 60; // Revalidar la página cada minuto para refrescar
 
 export default async function Home() {
   // Consultar estadísticas reales desde Supabase
-  let stats = { affected: 0, missing: 0, rescued: 0 };
+  let stats = { affected: 0, missing: 0, rescued: 0, hospitalized: 0 };
   
+  // Cifras oficiales del balance nacional (actualizables manualmente)
+  const officialStats = {
+    deaths: 188,
+    injuries: 1520,
+    missing: 157,
+    rescued: 200,
+    families: 2227,
+    buildings: 250,
+  };
+
   try {
     const supabase = await createClient();
     
-    const [affectedRes, missingRes, rescuedRes] = await Promise.all([
+    const [affectedRes, missingRes, rescuedRes, hospitalizedRes] = await Promise.all([
       supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("is_public", true),
       supabase.from("missing_people").select("notes").eq("status", "missing"),
       supabase.from("rescued_people").select("*", { count: "exact", head: true }),
+      supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("status", "Hospitalizado").eq("is_public", true),
     ]);
 
     stats.affected = affectedRes.count || 0;
     // Excluir desaparecidos que están en revisión
     stats.missing = (missingRes.data || []).filter(p => !p.notes?.includes("[PENDING REVIEW]")).length;
     stats.rescued = rescuedRes.count || 0;
+    stats.hospitalized = hospitalizedRes.count || 0;
   } catch (err) {
     console.error("Error al obtener estadísticas del home:", err);
   }
@@ -134,21 +146,57 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Sección de Estadísticas Rápidas */}
-      <section className="bg-white border-b border-gray-200 py-6">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="grid grid-cols-3 gap-4 text-center md:divide-x md:divide-gray-100">
-            <div className="flex flex-col">
-              <span className="text-2xl md:text-4xl font-extrabold text-[#0B1F3A]">{stats.affected}</span>
-              <span className="text-xs md:text-sm font-bold text-gray-500 uppercase mt-0.5">Afectados Registrados</span>
+      {/* Sección de Estadísticas Oficiales */}
+      <section className="bg-white border-b border-gray-200 py-8">
+        <div className="max-w-6xl mx-auto px-4">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-1">Balance Oficial del Sismo</h3>
+          <p className="text-[10px] text-gray-400 text-center mb-5">Fuente: Protección Civil y medios verificados &middot; Cifras sujetas a actualización</p>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
+            <div className="flex flex-col p-3 rounded-lg bg-gray-50">
+              <span className="text-2xl md:text-3xl font-extrabold text-gray-900">{officialStats.deaths}</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Fallecidos</span>
             </div>
-            <div className="flex flex-col">
-              <span className="text-2xl md:text-4xl font-extrabold text-[#C0392B]">{stats.missing}</span>
-              <span className="text-xs md:text-sm font-bold text-gray-500 uppercase mt-0.5">Reportes Activos de Búsqueda</span>
+            <div className="flex flex-col p-3 rounded-lg bg-gray-50">
+              <span className="text-2xl md:text-3xl font-extrabold text-amber-600">{officialStats.injuries.toLocaleString()}</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Heridos</span>
             </div>
-            <div className="flex flex-col">
-              <span className="text-2xl md:text-4xl font-extrabold text-emerald-600">{stats.rescued}</span>
-              <span className="text-xs md:text-sm font-bold text-gray-500 uppercase mt-0.5">Personas Rescatadas</span>
+            <div className="flex flex-col p-3 rounded-lg bg-gray-50">
+              <span className="text-2xl md:text-3xl font-extrabold text-[#C0392B]">{officialStats.missing}</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Desaparecidos</span>
+            </div>
+            <div className="flex flex-col p-3 rounded-lg bg-gray-50">
+              <span className="text-2xl md:text-3xl font-extrabold text-emerald-600">+{officialStats.rescued}</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Rescatados</span>
+            </div>
+            <div className="flex flex-col p-3 rounded-lg bg-gray-50">
+              <span className="text-2xl md:text-3xl font-extrabold text-blue-600">{officialStats.families.toLocaleString()}</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Familias</span>
+            </div>
+            <div className="flex flex-col p-3 rounded-lg bg-gray-50">
+              <span className="text-2xl md:text-3xl font-extrabold text-orange-600">+{officialStats.buildings}</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Edificaciones</span>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-5 border-t border-gray-100">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-4">Registrados en esta Plataforma</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="flex flex-col">
+                <span className="text-2xl md:text-4xl font-extrabold text-[#0B1F3A]">{stats.affected}</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Afectados Registrados</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xl md:text-4xl font-extrabold text-blue-700">{stats.hospitalized}</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Hospitalizados</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xl md:text-4xl font-extrabold text-[#C0392B]">{stats.missing}</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Reportes de Búsqueda</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xl md:text-4xl font-extrabold text-emerald-600">{stats.rescued}</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Personas Rescatadas</span>
+              </div>
             </div>
           </div>
         </div>
