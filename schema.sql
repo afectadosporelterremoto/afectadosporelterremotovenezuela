@@ -377,3 +377,70 @@ create policy "Control de administrador para deceased_people"
 create trigger set_updated_at_deceased_people
     before update on public.deceased_people
     for each row execute function public.handle_updated_at();
+
+-- ----------------------------------------------------
+-- 10. TABLA DE HISTORIAL DE CAMBIOS DE BALANCE (balance_history)
+-- ----------------------------------------------------
+create table public.balance_history (
+    id uuid primary key default uuid_generate_v4(),
+    balance_id uuid references public.official_balance(id) on delete cascade,
+    changed_by uuid references auth.users(id) on delete set null,
+    changed_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    ip_address text,
+    field_name text not null,
+    old_value text,
+    new_value text,
+    notes text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS
+alter table public.balance_history enable row level security;
+
+-- Políticas de RLS para balance_history
+create policy "Permitir lectura pública para balance_history"
+    on public.balance_history for select
+    using (true);
+
+create policy "Permitir control de administrador para balance_history"
+    on public.balance_history for all
+    using (public.is_admin());
+
+-- ----------------------------------------------------
+-- 11. TABLA DE AUDITORÍA DE ACCIONES ADMINISTRATIVAS (audit_logs)
+-- ----------------------------------------------------
+create table public.audit_logs (
+    id uuid primary key default uuid_generate_v4(),
+    user_id uuid references auth.users(id) on delete set null,
+    action text not null,
+    target_table text,
+    target_id uuid,
+    details jsonb,
+    ip_address text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS
+alter table public.audit_logs enable row level security;
+
+-- Políticas de RLS para audit_logs
+create policy "Admin only select audit_logs"
+    on public.audit_logs for select
+    using (public.is_admin());
+
+create policy "Admin insert audit_logs"
+    on public.audit_logs for insert
+    with check (public.is_admin());
+
+create policy "Admin only edit/delete audit_logs"
+    on public.audit_logs for all
+    using (public.is_admin());
+
+-- Nuevas columnas en official_balance (para mayor información de la fuente)
+-- alter table public.official_balance add column if not exists source_org text;
+-- alter table public.official_balance add column if not exists source_bulletin text;
+-- alter table public.official_balance add column if not exists source_report_number text;
+-- alter table public.official_balance add column if not exists source_report_date text;
+-- alter table public.official_balance add column if not exists source_report_time text;
+-- alter table public.official_balance add column if not exists source_url text;
+

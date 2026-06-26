@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Archivos temporales de importación
+Pacientes_nuevos_no_duplicados.csv
+existing_records.json
+unique_images.json
+set-admin-password.mjs

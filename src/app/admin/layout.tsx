@@ -13,7 +13,9 @@ import {
   ArrowLeft,
   Building,
   Database,
-  Skull
+  Skull,
+  Activity,
+  Upload
 } from "lucide-react";
 import Logo from "@/components/Logo";
 
@@ -76,6 +78,8 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const sidebarLinks = [
+    { name: "Centro de Operaciones", href: "/admin/centro-operaciones", icon: Activity },
+    { name: "Importaciones", href: "/admin/importaciones", icon: Upload },
     { name: "Balance Oficial", href: "/admin/balance", icon: Database },
     { name: "Registros de Afectados", href: "/admin/afectados", icon: Users },
     { name: "Casos de Desaparecidos", href: "/admin/desaparecidos", icon: UserMinus },

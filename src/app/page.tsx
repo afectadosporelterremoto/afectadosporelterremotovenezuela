@@ -31,6 +31,20 @@ export default async function Home() {
     buildings: 250,
     source: "" as string | undefined,
     updated_at: undefined as string | undefined,
+    source_org: undefined as string | undefined,
+    source_bulletin: undefined as string | undefined,
+    source_report_number: undefined as string | undefined,
+    source_report_date: undefined as string | undefined,
+    source_report_time: undefined as string | undefined,
+    source_url: undefined as string | undefined,
+  };
+
+  let latestUpdateTimes = {
+    official: undefined as string | undefined,
+    hospitalized: undefined as string | undefined,
+    missing: undefined as string | undefined,
+    deceased: undefined as string | undefined,
+    rescued: undefined as string | undefined,
   };
 
   const safeQuery = async (queryBuilder: any) => {
@@ -87,8 +101,20 @@ export default async function Home() {
         buildings: officialBalanceRes.data.buildings_count,
         source: officialBalanceRes.data.source || undefined,
         updated_at: officialBalanceRes.data.updated_at,
+        source_org: officialBalanceRes.data.source_org || undefined,
+        source_bulletin: officialBalanceRes.data.source_bulletin || undefined,
+        source_report_number: officialBalanceRes.data.source_report_number || undefined,
+        source_report_date: officialBalanceRes.data.source_report_date || undefined,
+        source_report_time: officialBalanceRes.data.source_report_time || undefined,
+        source_url: officialBalanceRes.data.source_url || undefined,
       };
     }
+
+    latestUpdateTimes.official = officialBalanceRes.data?.updated_at;
+    latestUpdateTimes.hospitalized = latestAffected?.data?.updated_at;
+    latestUpdateTimes.missing = latestMissing?.data?.updated_at;
+    latestUpdateTimes.deceased = latestDeceased?.data?.updated_at;
+    latestUpdateTimes.rescued = latestRescued?.data?.updated_at;
 
     const dates = [
       latestAffected?.data?.updated_at,
@@ -245,6 +271,30 @@ export default async function Home() {
             </div>
           </div>
 
+          {officialStats.source_org && (
+            <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-xl max-w-2xl mx-auto text-xs text-gray-650 space-y-2 shadow-2xs">
+              <div className="font-bold text-gray-800 text-center uppercase tracking-wider text-[10px]">Detalle de la Fuente Oficial del Balance</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                <div><span className="font-semibold text-gray-700">Organismo:</span> {officialStats.source_org}</div>
+                {officialStats.source_bulletin && <div><span className="font-semibold text-gray-700">Boletín:</span> {officialStats.source_bulletin}</div>}
+                {officialStats.source_report_number && <div><span className="font-semibold text-gray-700">Nº Reporte:</span> {officialStats.source_report_number}</div>}
+                {(officialStats.source_report_date || officialStats.source_report_time) && (
+                  <div>
+                    <span className="font-semibold text-gray-700">Reportado el:</span> {officialStats.source_report_date || ""} {officialStats.source_report_time || ""}
+                  </div>
+                )}
+                {officialStats.source_url && (
+                  <div className="sm:col-span-2 border-t border-gray-200/60 pt-1.5 mt-1">
+                    <span className="font-semibold text-gray-700">Enlace al reporte:</span>{" "}
+                    <a href={officialStats.source_url} target="_blank" rel="noopener noreferrer" className="text-[#0B1F3A] hover:underline font-medium break-all">
+                      {officialStats.source_url}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="text-center mt-6">
             <span className="text-xs text-gray-500 font-semibold bg-gray-50/50 py-1.5 px-3 rounded-lg border border-gray-100/50 inline-block">
               Última actualización del balance oficial: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(officialStats.updated_at || "2026-06-25T12:00:00Z")}</span>
@@ -290,9 +340,35 @@ export default async function Home() {
                 <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Fallecidos confirmados en la plataforma</span>
               </Link>
             </div>
+            <div className="mt-8 border-t border-gray-200/65 pt-6 max-w-5xl mx-auto">
+              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center mb-3">Tiempos de Actualización en Tiempo Real (Venezuela)</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-left text-[11px] text-gray-500">
+                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-150">
+                  <span className="font-bold text-gray-700 block uppercase text-[9px] mb-0.5">Balance Oficial</span>
+                  <span>{latestUpdateTimes.official ? formatVenezuelaDateTime(latestUpdateTimes.official) : "No registrado"}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-150">
+                  <span className="font-bold text-gray-700 block uppercase text-[9px] mb-0.5">Hospitalizados</span>
+                  <span>{latestUpdateTimes.hospitalized ? formatVenezuelaDateTime(latestUpdateTimes.hospitalized) : "No registrado"}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-150">
+                  <span className="font-bold text-gray-700 block uppercase text-[9px] mb-0.5">Desaparecidos</span>
+                  <span>{latestUpdateTimes.missing ? formatVenezuelaDateTime(latestUpdateTimes.missing) : "No registrado"}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-150">
+                  <span className="font-bold text-gray-700 block uppercase text-[9px] mb-0.5">Fallecidos</span>
+                  <span>{latestUpdateTimes.deceased ? formatVenezuelaDateTime(latestUpdateTimes.deceased) : "No registrado"}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-150">
+                  <span className="font-bold text-gray-700 block uppercase text-[9px] mb-0.5">Rescatados</span>
+                  <span>{latestUpdateTimes.rescued ? formatVenezuelaDateTime(latestUpdateTimes.rescued) : "No registrado"}</span>
+                </div>
+              </div>
+            </div>
+
             <div className="text-center mt-6">
               <span className="text-xs text-gray-500 font-semibold bg-gray-50/50 py-1.5 px-3 rounded-lg border border-gray-100/50 inline-block">
-                Última actualización de la plataforma: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastSyncTime)}</span>
+                Última sincronización general: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastSyncTime)}</span>
               </span>
             </div>
           </div>
