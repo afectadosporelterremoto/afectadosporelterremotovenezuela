@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { updateMissingPersonStatus, deleteMissingPerson } from "@/app/actions";
 import { Trash2, Phone, Calendar, MapPin, Eye, Shield, CheckCircle, AlertCircle } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 interface AdminDesaparecidosListProps {
   initialPeople: any[];
@@ -154,6 +155,11 @@ export default function AdminDesaparecidosList({ initialPeople }: AdminDesaparec
               <div>
                 <span className="block text-gray-400 font-bold uppercase text-[9px]">Vestimenta</span>
                 <p className="text-gray-800 font-semibold leading-relaxed mt-0.5">{selectedPerson.clothes_description || "Sin especificar"}</p>
+              </div>
+
+              <div>
+                <span className="block text-gray-400 font-bold uppercase text-[9px]">Última actualización</span>
+                <p className="text-gray-800 font-semibold mt-0.5">{formatVenezuelaDateTime(selectedPerson.updated_at || selectedPerson.created_at)}</p>
               </div>
 
               {selectedPerson.last_contact_at && (

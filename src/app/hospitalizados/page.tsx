@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { maskCedula } from "@/utils/mask";
 import { Search, MapPin, Building, Calendar, AlertCircle } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 export const metadata = {
   title: "Pacientes Hospitalizados | Terremoto Venezuela",
@@ -26,7 +27,7 @@ export default async function HospitalizadosPage({ searchParams }: Hospitalizado
     const supabase = await createClient();
     let query = supabase
       .from("affected_people")
-      .select("id, full_name, cedula, exact_address, city, state, created_at")
+      .select("id, full_name, cedula, exact_address, city, state, created_at, updated_at")
       .eq("status", "Hospitalizado")
       .eq("is_public", true);
 
@@ -66,6 +67,9 @@ export default async function HospitalizadosPage({ searchParams }: Hospitalizado
   const usingMock = patients.length === 0 && !searchName && dbError;
   const activeList = usingMock ? mockPatients : patients;
 
+  const dates = activeList.map((p) => new Date(p.updated_at || p.created_at).getTime());
+  const lastUpdate = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
+
   return (
     <div className="py-8 px-4 md:py-12 max-w-7xl mx-auto w-full space-y-8 flex-1 flex flex-col">
       <div className="space-y-2">
@@ -75,6 +79,9 @@ export default async function HospitalizadosPage({ searchParams }: Hospitalizado
         </h1>
         <p className="text-sm text-gray-500 max-w-2xl">
           Listado de personas ingresadas en centros de salud. Esta información es pública para facilitar la ubicación de familiares. Los datos sensibles están protegidos.
+        </p>
+        <p className="text-xs text-gray-500 font-semibold bg-gray-50 border border-gray-100 py-1.5 px-3 rounded-md inline-block">
+          Última actualización: <span className="text-gray-800 font-bold">{formatVenezuelaDateTime(lastUpdate)}</span>
         </p>
       </div>
 
@@ -140,7 +147,7 @@ export default async function HospitalizadosPage({ searchParams }: Hospitalizado
 
               <div className="flex items-center space-x-1 text-[10px] text-gray-400 border-t border-gray-50 pt-3">
                 <Calendar size={12} />
-                <span>Registrado: {new Date(patient.created_at).toLocaleDateString("es-VE")}</span>
+                <span>Última actualización: {formatVenezuelaDateTime(patient.updated_at || patient.created_at)}</span>
               </div>
             </div>
           ))}

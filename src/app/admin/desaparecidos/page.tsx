@@ -2,6 +2,7 @@ import React from "react";
 import { createClient } from "@/utils/supabase/server";
 import AdminDesaparecidosList from "@/components/AdminDesaparecidosList";
 import { AlertCircle } from "lucide-react";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 export const metadata = {
   title: "Administrar Desaparecidos | Terremoto Venezuela",
@@ -39,11 +40,15 @@ export default async function AdminDesaparecidosPage() {
       reporter_phone: "0412-5556677",
       status: "missing",
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     },
   ];
 
   const usingMock = people.length === 0 && errorMsg;
   const activePeople = usingMock ? mockPeople : people;
+
+  const dates = activePeople.map((p) => new Date(p.updated_at || p.created_at).getTime());
+  const lastUpdate = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
 
   return (
     <div className="space-y-6">
@@ -51,6 +56,9 @@ export default async function AdminDesaparecidosPage() {
         <h1 className="text-xl font-black text-gray-900 tracking-tight">Administración de Personas Desaparecidas</h1>
         <p className="text-xs text-gray-500">
           Supervise los reportes de búsqueda activos y actualice sus estados cuando sean localizados o rescatados.
+        </p>
+        <p className="text-xs text-gray-500 font-semibold mt-1">
+          Última actualización de desaparecidos: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastUpdate)}</span>
         </p>
       </div>
 

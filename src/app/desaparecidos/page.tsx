@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { maskCedula, maskPhone } from "@/utils/mask";
 import { MapPin, Phone, Calendar, Info, Shield, Search, AlertCircle, PlusCircle } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 export const metadata = {
   title: "Localización de Desaparecidos | Terremoto Venezuela",
@@ -76,6 +77,9 @@ export default async function DesaparecidosPage({ searchParams }: DesaparecidosP
   const usingMock = missingList.length === 0 && !searchName && dbError;
   const activeList = usingMock ? mockMissing : missingList;
 
+  const dates = activeList.map((p) => new Date(p.updated_at || p.created_at).getTime());
+  const lastUpdate = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
+
   return (
     <div className="py-8 px-4 md:py-12 max-w-7xl mx-auto w-full space-y-8 flex-1 flex flex-col">
       {/* Encabezado */}
@@ -86,6 +90,9 @@ export default async function DesaparecidosPage({ searchParams }: DesaparecidosP
           </h1>
           <p className="text-sm text-gray-500 max-w-2xl">
             Consulte la lista de búsquedas activas. Si tiene información sobre el paradero de alguna de estas personas, use el botón para reportar información en su ficha.
+          </p>
+          <p className="text-xs text-gray-500 font-semibold bg-gray-50 border border-gray-100 py-1.5 px-3 rounded-md inline-block">
+            Última actualización: <span className="text-gray-800 font-bold">{formatVenezuelaDateTime(lastUpdate)}</span>
           </p>
         </div>
 
@@ -202,7 +209,7 @@ export default async function DesaparecidosPage({ searchParams }: DesaparecidosP
                     <div className="flex items-center justify-between text-[10px] text-gray-400 border-t border-gray-50 pt-3">
                       <div className="flex items-center space-x-1">
                         <Calendar size={12} />
-                        <span>Reportado: {new Date(person.created_at).toLocaleDateString("es-VE")}</span>
+                        <span>Última actualización: {formatVenezuelaDateTime(person.updated_at || person.created_at)}</span>
                       </div>
                       <span className="font-bold text-[#0B1F3A]">Familiar: {person.reporter_name}</span>
                     </div>

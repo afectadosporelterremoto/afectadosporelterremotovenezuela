@@ -14,6 +14,7 @@ import {
   AlertTriangle 
 } from "lucide-react";
 import PrivacyNotice from "@/components/PrivacyNotice";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 interface DetailPageProps {
   params: Promise<{
@@ -75,6 +76,7 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
         registered_by_name: affectedData.registered_by_name,
         registered_by_phone: affectedData.registered_by_phone,
         created_at: affectedData.created_at,
+        updated_at: affectedData.updated_at,
       };
     } else {
       // 2. Try fetching from missing_people
@@ -101,6 +103,7 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
           registered_by_name: missingData.reporter_name,
           registered_by_phone: missingData.reporter_phone,
           created_at: missingData.created_at,
+          updated_at: missingData.updated_at,
         };
       } else {
         // 3. Try fetching from rescued_people
@@ -127,6 +130,7 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
             registered_by_name: rescuedData.reported_by_name,
             registered_by_phone: rescuedData.reported_by_phone,
             created_at: rescuedData.created_at,
+            updated_at: rescuedData.updated_at,
           };
         }
       }
@@ -353,7 +357,7 @@ export default async function PersonDetailPage({ params }: DetailPageProps) {
               {/* Fecha */}
               <div className="flex items-center space-x-1.5 text-xs text-gray-400">
                 <Calendar size={14} />
-                <span>Fecha del Registro: {new Date(unifiedPerson.created_at).toLocaleString("es-VE")}</span>
+                <span>Última actualización: {formatVenezuelaDateTime(unifiedPerson.updated_at || unifiedPerson.created_at)}</span>
               </div>
             </div>
           </div>

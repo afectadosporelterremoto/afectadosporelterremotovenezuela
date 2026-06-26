@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { Calendar, MapPin, Phone, Shield, FileText, Send, Check } from "lucide-react";
+import { Calendar, MapPin, Phone, Shield, FileText, Send, Check, Building } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import { maskCedula, maskPhone } from "@/utils/mask";
 import { createClient } from "@/utils/supabase/client";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 interface PersonCardProps {
   person: {
@@ -19,6 +20,9 @@ interface PersonCardProps {
     situation_description?: string;
     person_photo_url?: string;
     created_at: string;
+    updated_at?: string;
+    exact_address?: string;
+    hospital_or_shelter?: string;
     type?: string;
   };
 }
@@ -125,6 +129,14 @@ export default function PersonCard({ person }: PersonCardProps) {
           </span>
         </div>
 
+        {/* Hospital si está hospitalizado */}
+        {((person.status === "Hospitalizado" || person.type === "hospitalizado") && (person.exact_address || person.hospital_or_shelter)) && (
+          <div className="mt-2 flex items-start space-x-1.5 text-sm text-gray-600 font-semibold bg-blue-50/50 p-1.5 rounded border border-blue-100/30">
+            <Building size={16} className="text-blue-700 shrink-0 mt-0.5" />
+            <span className="line-clamp-1">Hospital: {person.exact_address || person.hospital_or_shelter}</span>
+          </div>
+        )}
+
         {/* Teléfono de contacto enmascarado */}
         <div className="mt-2 flex items-center space-x-1.5 text-sm text-gray-600">
           <Phone size={16} className="text-gray-400 shrink-0" />
@@ -136,10 +148,10 @@ export default function PersonCard({ person }: PersonCardProps) {
           "{person.situation_description || "Sin descripción detallada de la situación."}"
         </p>
 
-        {/* Fecha de Registro */}
-        <div className="mt-4 flex items-center space-x-1 text-[11px] text-gray-400 border-t border-gray-100 pt-3">
+        {/* Fecha de Actualización */}
+        <div className="mt-4 flex items-center space-x-1 text-[10px] text-gray-400 border-t border-gray-100 pt-3">
           <Calendar size={12} />
-          <span>Registrado: {new Date(person.created_at).toLocaleDateString("es-VE")}</span>
+          <span>Última actualización: {formatVenezuelaDateTime(person.updated_at || person.created_at)}</span>
         </div>
 
         {/* Acciones */}

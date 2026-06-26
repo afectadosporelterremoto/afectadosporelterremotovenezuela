@@ -2,6 +2,7 @@ import React from "react";
 import { createClient } from "@/utils/supabase/server";
 import AdminHospitalizadosList from "@/components/AdminHospitalizadosList";
 import { AlertCircle, Building } from "lucide-react";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 export const metadata = {
   title: "Administrar Hospitalizados | Terremoto Venezuela",
@@ -38,6 +39,7 @@ export default async function AdminHospitalizadosPage() {
       state: "Distrito Capital",
       is_public: false,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     },
     {
       id: "demo-h2",
@@ -48,11 +50,15 @@ export default async function AdminHospitalizadosPage() {
       state: "Distrito Capital",
       is_public: true,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
   ];
 
   const usingMock = patients.length === 0 && errorMsg;
   const activeList = usingMock ? mockPatients : patients;
+
+  const dates = activeList.map((p) => new Date(p.updated_at || p.created_at).getTime());
+  const lastUpdate = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
 
   return (
     <div className="space-y-6">
@@ -62,7 +68,10 @@ export default async function AdminHospitalizadosPage() {
           <span>Panel de Hospitalizados (Revisión)</span>
         </h1>
         <p className="text-xs text-gray-500">
-          Modere la lista de ciudadanos ingresados en centros médicos. Publique o culte registros para visualización pública de familiares.
+          Modere la lista de ciudadanos ingresados en centros médicos. Publique o oculte registros para visualización pública de familiares.
+        </p>
+        <p className="text-xs text-gray-500 font-semibold mt-1">
+          Última actualización de hospitalizados: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastUpdate)}</span>
         </p>
       </div>
 

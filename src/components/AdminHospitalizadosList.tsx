@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { toggleAffectedPersonPublic, deleteAffectedPerson, updateAffectedPersonStatus } from "@/app/actions";
 import { Trash2, Shield, MapPin, Eye, FileText, CheckCircle, AlertCircle, EyeOff, Building } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 interface AdminHospitalizadosListProps {
   initialPatients: any[];
@@ -187,6 +188,11 @@ export default function AdminHospitalizadosList({ initialPatients }: AdminHospit
                 <div>
                   <span className="block text-gray-400 font-bold uppercase tracking-wider text-[9px] mb-1">Ciudad y Estado</span>
                   <span className="text-sm font-semibold text-gray-800">{selectedPatient.city}, {selectedPatient.state}</span>
+                </div>
+
+                <div>
+                  <span className="block text-gray-400 font-bold uppercase tracking-wider text-[9px] mb-1">Última actualización</span>
+                  <span className="text-sm font-semibold text-gray-800">{formatVenezuelaDateTime(selectedPatient.updated_at || selectedPatient.created_at)}</span>
                 </div>
 
                 <div>

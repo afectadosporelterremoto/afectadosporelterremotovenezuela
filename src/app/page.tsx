@@ -11,12 +11,14 @@ import {
   AlertTriangle 
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
+import { formatVenezuelaDateTime } from "@/utils/date";
 
 export const revalidate = 60; // Revalidar la página cada minuto para refrescar estadísticas
 
 export default async function Home() {
   // Consultar estadísticas reales desde Supabase
   let stats = { affected: 0, missing: 0, rescued: 0, hospitalized: 0 };
+  let lastSyncTime = new Date();
   
   // Cifras oficiales del balance nacional (actualizables manualmente)
   const officialStats = {
@@ -31,11 +33,14 @@ export default async function Home() {
   try {
     const supabase = await createClient();
     
-    const [affectedRes, missingRes, rescuedRes, hospitalizedRes] = await Promise.all([
+    const [affectedRes, missingRes, rescuedRes, hospitalizedRes, latestAffected, latestMissing, latestRescued] = await Promise.all([
       supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("is_public", true),
       supabase.from("missing_people").select("notes").eq("status", "missing"),
       supabase.from("rescued_people").select("*", { count: "exact", head: true }),
       supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("status", "Hospitalizado").eq("is_public", true),
+      supabase.from("affected_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("missing_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("rescued_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     stats.affected = affectedRes.count || 0;
@@ -43,6 +48,16 @@ export default async function Home() {
     stats.missing = (missingRes.data || []).filter(p => !p.notes?.includes("[PENDING REVIEW]")).length;
     stats.rescued = rescuedRes.count || 0;
     stats.hospitalized = hospitalizedRes.count || 0;
+
+    const dates = [
+      latestAffected?.data?.updated_at,
+      latestMissing?.data?.updated_at,
+      latestRescued?.data?.updated_at,
+    ].filter(Boolean).map(d => new Date(d).getTime());
+
+    if (dates.length > 0) {
+      lastSyncTime = new Date(Math.max(...dates));
+    }
   } catch (err) {
     console.error("Error al obtener estadísticas del home:", err);
   }
@@ -197,6 +212,9 @@ export default async function Home() {
                 <span className="text-2xl md:text-4xl font-extrabold text-emerald-600">{stats.rescued}</span>
                 <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Personas Rescatadas</span>
               </div>
+            </div>
+            <div className="text-center mt-6 text-xs text-gray-500 font-semibold bg-gray-50/50 py-2 px-4 rounded-lg border border-gray-100/50 inline-block mx-auto">
+              Última actualización de la plataforma: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastSyncTime)}</span>
             </div>
           </div>
         </div>
