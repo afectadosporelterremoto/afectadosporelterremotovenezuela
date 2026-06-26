@@ -303,3 +303,77 @@ values
 ('Nacional', 'Caracas', 'Bomberos del Distrito Capital', '0212-5454545', null, 'Av. Lecuna, Caracas', 'Gobierno de Distrito Capital', now(), true),
 ('Nacional', 'Todo el país', 'Emergencias Nacionales Ven911', '911', null, 'Sedes Ven911 a nivel nacional', 'Ministerio del Poder Popular para Relaciones Interiores, Justicia y Paz', now(), true),
 ('Nacional', 'Todo el país', 'Cuerpo de Investigaciones Científicas, Penales y Criminalísticas (CICPC)', '0800-2427224', null, 'Avenida Urdaneta, Caracas', 'Página web oficial del CICPC', now(), true);
+
+-- ----------------------------------------------------
+-- 8. TABLA DE BALANCE OFICIAL DEL SISMO
+-- ----------------------------------------------------
+create table public.official_balance (
+    id uuid primary key default uuid_generate_v4(),
+    deceased_count integer not null default 0,
+    injured_count integer not null default 0,
+    missing_count integer not null default 0,
+    rescued_count integer not null default 0,
+    families_count integer not null default 0,
+    buildings_count integer not null default 0,
+    source text,
+    internal_notes text,
+    updated_by uuid references auth.users(id) on delete set null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS para official_balance
+alter table public.official_balance enable row level security;
+
+-- Políticas de RLS para official_balance
+create policy "Permitir lectura pública para official_balance"
+    on public.official_balance for select
+    using (true);
+
+create policy "Permitir control de administrador para official_balance"
+    on public.official_balance for all
+    using (public.is_admin());
+
+-- Trigger para updated_at en official_balance
+create trigger set_updated_at_official_balance
+    before update on public.official_balance
+    for each row execute function public.handle_updated_at();
+
+-- ----------------------------------------------------
+-- 9. TABLA DE FALLECIDOS MANUALES (DECEASED_PEOPLE)
+-- ----------------------------------------------------
+create table public.deceased_people (
+    id uuid primary key default uuid_generate_v4(),
+    full_name text not null,
+    cedula text,
+    age integer,
+    state text,
+    city text,
+    location text,
+    source_type text,
+    source_name text,
+    source_contact text,
+    verification_status text not null default 'pending_review' check (verification_status in ('pending_review', 'confirmed', 'rejected', 'duplicate')),
+    is_public boolean not null default false,
+    notes text,
+    updated_by uuid references auth.users(id) on delete set null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS para deceased_people
+alter table public.deceased_people enable row level security;
+
+-- Políticas de RLS para deceased_people
+create policy "Lectura pública limitada para deceased_people"
+    on public.deceased_people for select
+    using ((is_public = true and verification_status = 'confirmed') or public.is_admin());
+
+create policy "Control de administrador para deceased_people"
+    on public.deceased_people for all
+    using (public.is_admin());
+
+-- Trigger para updated_at en deceased_people
+create trigger set_updated_at_deceased_people
+    before update on public.deceased_people
+    for each row execute function public.handle_updated_at();

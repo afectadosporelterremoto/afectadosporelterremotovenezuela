@@ -92,6 +92,8 @@ export default async function Footer() {
               <Link href="/registrar-afectado" className="hover:text-white hover:underline">Registrar Afectado</Link>
               <Link href="/desaparecidos" className="hover:text-white hover:underline">Desaparecidos</Link>
               <Link href="/rescatados" className="hover:text-white hover:underline">Rescatados</Link>
+              <Link href="/hospitalizados" className="hover:text-white hover:underline">Hospitalizados</Link>
+              <Link href="/fallecidos" className="hover:text-white hover:underline">Fallecidos</Link>
               <Link href="/historias" className="hover:text-white hover:underline">Historias</Link>
               <Link href="/admin" className="hover:text-white hover:underline flex items-center space-x-1">
                 <span>Acceso Admin</span>

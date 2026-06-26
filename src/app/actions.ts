@@ -794,4 +794,227 @@ export async function submitInformationReport(data: {
   }
 }
 
+/**
+ * Obtiene el balance oficial del sismo más reciente
+ */
+export async function getOfficialBalance() {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("official_balance")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
+    if (error) {
+      console.warn("No se pudo obtener el balance oficial (es posible que la tabla no exista aún):", error.message);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("Excepción en getOfficialBalance:", err);
+    return null;
+  }
+}
+
+/**
+ * Actualiza o inserta el balance oficial del sismo (admin-only)
+ */
+export async function updateOfficialBalance(data: {
+  deceased_count: number;
+  injured_count: number;
+  missing_count: number;
+  rescued_count: number;
+  families_count: number;
+  buildings_count: number;
+  source?: string;
+  internal_notes?: string;
+}) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) return { error: "Acceso no autorizado." };
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+      .from("official_balance")
+      .insert({
+        ...data,
+        updated_by: user?.id,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Obtiene la lista pública de fallecidos confirmados
+ */
+export async function getPublicDeceasedPeople(queryName?: string) {
+  try {
+    const supabase = await createClient();
+    let q = supabase
+      .from("deceased_people")
+      .select("id, full_name, age, state, city, location, source_type, created_at, updated_at")
+      .eq("is_public", true)
+      .eq("verification_status", "confirmed");
+
+    if (queryName) {
+      q = q.ilike("full_name", `%${queryName}%`);
+    }
+
+    const { data, error } = await q.order("full_name", { ascending: true });
+    if (error) {
+      console.warn("No se pudo obtener la lista de fallecidos (es posible que la tabla no exista aún):", error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error("Excepción en getPublicDeceasedPeople:", err);
+    return [];
+  }
+}
+
+/**
+ * Obtiene la lista completa de fallecidos para administración (admin-only)
+ */
+export async function getAdminDeceasedPeople() {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) throw new Error("Acceso no autorizado.");
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("deceased_people")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) return { error: error.message };
+    return { data: data || [] };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Registra manualmente un fallecido (admin-only)
+ */
+export async function addDeceasedPerson(data: {
+  full_name: string;
+  cedula?: string;
+  age?: number;
+  state?: string;
+  city?: string;
+  location?: string;
+  source_type?: string;
+  source_name?: string;
+  source_contact?: string;
+  verification_status: "pending_review" | "confirmed" | "rejected" | "duplicate";
+  is_public: boolean;
+  notes?: string;
+}) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) return { error: "Acceso no autorizado." };
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+      .from("deceased_people")
+      .insert({
+        ...data,
+        updated_by: user?.id,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/fallecidos");
+    revalidatePath("/admin/fallecidos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Modifica un fallecido existente (admin-only)
+ */
+export async function updateDeceasedPerson(
+  id: string,
+  data: {
+    full_name?: string;
+    cedula?: string;
+    age?: number;
+    state?: string;
+    city?: string;
+    location?: string;
+    source_type?: string;
+    source_name?: string;
+    source_contact?: string;
+    verification_status?: "pending_review" | "confirmed" | "rejected" | "duplicate";
+    is_public?: boolean;
+    notes?: string;
+  }
+) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) return { error: "Acceso no autorizado." };
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+      .from("deceased_people")
+      .update({
+        ...data,
+        updated_by: user?.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/fallecidos");
+    revalidatePath("/admin/fallecidos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Elimina permanentemente un fallecido (admin-only)
+ */
+export async function deleteDeceasedPerson(id: string) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) return { error: "Acceso no autorizado." };
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("deceased_people")
+      .delete()
+      .eq("id", id);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/fallecidos");
+    revalidatePath("/admin/fallecidos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}

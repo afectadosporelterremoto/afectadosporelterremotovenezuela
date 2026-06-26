@@ -18,42 +18,83 @@ export const revalidate = 60; // Revalidar la página cada minuto para refrescar
 
 export default async function Home() {
   // Consultar estadísticas reales desde Supabase
-  let stats = { affected: 0, missing: 0, rescued: 0, hospitalized: 0 };
+  let stats = { affected: 0, missing: 0, rescued: 0, hospitalized: 0, deceased: 0 };
   let lastSyncTime = new Date();
   
   // Cifras oficiales del balance nacional (actualizables manualmente)
-  const officialStats = {
+  let officialStats = {
     deaths: 188,
     injuries: 1520,
     missing: 157,
     rescued: 200,
     families: 2227,
     buildings: 250,
+    source: "" as string | undefined,
+    updated_at: undefined as string | undefined,
+  };
+
+  const safeQuery = async (queryBuilder: any) => {
+    try {
+      const res = await queryBuilder;
+      if (res.error) return { count: 0, data: [], error: res.error };
+      return res;
+    } catch (err) {
+      return { count: 0, data: [], error: err };
+    }
   };
 
   try {
     const supabase = await createClient();
     
-    const [affectedRes, missingRes, rescuedRes, hospitalizedRes, latestAffected, latestMissing, latestRescued] = await Promise.all([
-      supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("is_public", true),
-      supabase.from("missing_people").select("notes").eq("status", "missing"),
-      supabase.from("rescued_people").select("*", { count: "exact", head: true }),
-      supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("status", "Hospitalizado").eq("is_public", true),
-      supabase.from("affected_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("missing_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("rescued_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    const [
+      affectedRes,
+      missingRes,
+      rescuedRes,
+      hospitalizedRes,
+      deceasedRes,
+      latestAffected,
+      latestMissing,
+      latestRescued,
+      latestDeceased,
+      officialBalanceRes
+    ] = await Promise.all([
+      safeQuery(supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("is_public", true)),
+      safeQuery(supabase.from("missing_people").select("notes").eq("status", "missing")),
+      safeQuery(supabase.from("rescued_people").select("*", { count: "exact", head: true })),
+      safeQuery(supabase.from("affected_people").select("*", { count: "exact", head: true }).eq("status", "Hospitalizado").eq("is_public", true)),
+      safeQuery(supabase.from("deceased_people").select("*", { count: "exact", head: true }).eq("is_public", true).eq("verification_status", "confirmed")),
+      safeQuery(supabase.from("affected_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle()),
+      safeQuery(supabase.from("missing_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle()),
+      safeQuery(supabase.from("rescued_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle()),
+      safeQuery(supabase.from("deceased_people").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle()),
+      safeQuery(supabase.from("official_balance").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle()),
     ]);
 
     stats.affected = affectedRes.count || 0;
     // Excluir desaparecidos que están en revisión
-    stats.missing = (missingRes.data || []).filter(p => !p.notes?.includes("[PENDING REVIEW]")).length;
+    stats.missing = (missingRes.data || []).filter((p: any) => !p.notes?.includes("[PENDING REVIEW]")).length;
     stats.rescued = rescuedRes.count || 0;
     stats.hospitalized = hospitalizedRes.count || 0;
+    stats.deceased = deceasedRes.count || 0;
+
+    if (officialBalanceRes.data) {
+      officialStats = {
+        deaths: officialBalanceRes.data.deceased_count,
+        injuries: officialBalanceRes.data.injured_count,
+        missing: officialBalanceRes.data.missing_count,
+        rescued: officialBalanceRes.data.rescued_count,
+        families: officialBalanceRes.data.families_count,
+        buildings: officialBalanceRes.data.buildings_count,
+        source: officialBalanceRes.data.source || undefined,
+        updated_at: officialBalanceRes.data.updated_at,
+      };
+    }
 
     const dates = [
       latestAffected?.data?.updated_at,
       latestMissing?.data?.updated_at,
       latestRescued?.data?.updated_at,
+      latestDeceased?.data?.updated_at,
     ].filter(Boolean).map(d => new Date(d).getTime());
 
     if (dates.length > 0) {
@@ -166,50 +207,59 @@ export default async function Home() {
       {/* Sección de Estadísticas Oficiales */}
       <section className="bg-white border-b border-gray-200 py-8">
         <div className="max-w-6xl mx-auto px-4">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-1">Balance Oficial del Sismo</h3>
-          <p className="text-[10px] text-gray-400 text-center mb-5">Fuente: Protección Civil y medios verificados &middot; Cifras sujetas a actualización</p>
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-1">BALANCE OFICIAL DEL SISMO</h3>
+          <p className="text-[10px] text-gray-400 text-center mb-5">Fuente: {officialStats.source || "Protección Civil y medios verificados"} &middot; Cifras sujetas a actualización</p>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
-            <div className="flex flex-col p-3 rounded-lg bg-gray-50 select-none">
+            <Link 
+              href="/fallecidos" 
+              className="flex flex-col p-3 rounded-lg bg-gray-50 hover:bg-gray-100 hover:shadow-xs transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
+            >
               <span className="text-2xl md:text-3xl font-extrabold text-gray-900">{officialStats.deaths}</span>
-              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Fallecidos</span>
-            </div>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Fallecidos oficiales</span>
+            </Link>
             <div className="flex flex-col p-3 rounded-lg bg-gray-50 select-none">
               <span className="text-2xl md:text-3xl font-extrabold text-amber-600">{officialStats.injuries.toLocaleString()}</span>
-              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Heridos</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Heridos oficiales</span>
             </div>
             <Link 
               href="/desaparecidos" 
               className="flex flex-col p-3 rounded-lg bg-gray-50 hover:bg-gray-100 hover:shadow-xs transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
             >
               <span className="text-2xl md:text-3xl font-extrabold text-[#C0392B]">{officialStats.missing}</span>
-              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Desaparecidos</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Desaparecidos oficiales</span>
             </Link>
             <Link 
               href="/rescatados" 
               className="flex flex-col p-3 rounded-lg bg-gray-50 hover:bg-gray-100 hover:shadow-xs transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
             >
               <span className="text-2xl md:text-3xl font-extrabold text-emerald-600">+{officialStats.rescued}</span>
-              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Rescatados</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Rescatados oficiales</span>
             </Link>
             <div className="flex flex-col p-3 rounded-lg bg-gray-50 select-none">
               <span className="text-2xl md:text-3xl font-extrabold text-blue-600">{officialStats.families.toLocaleString()}</span>
-              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Familias</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Familias afectadas</span>
             </div>
             <div className="flex flex-col p-3 rounded-lg bg-gray-50 select-none">
               <span className="text-2xl md:text-3xl font-extrabold text-orange-600">+{officialStats.buildings}</span>
-              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Edificaciones</span>
+              <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-1">Edificaciones afectadas</span>
             </div>
           </div>
 
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-4">Registrados en esta Plataforma</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div className="text-center mt-6">
+            <span className="text-xs text-gray-500 font-semibold bg-gray-50/50 py-1.5 px-3 rounded-lg border border-gray-100/50 inline-block">
+              Última actualización del balance oficial: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(officialStats.updated_at || "2026-06-25T12:00:00Z")}</span>
+            </span>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-150">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-4">REGISTRADOS EN ESTA PLATAFORMA</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 text-center">
               <Link 
                 href="/buscar"
                 className="flex flex-col p-4 rounded-xl border border-gray-100 bg-white shadow-2xs hover:shadow-md hover:border-[#0B1F3A]/20 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
               >
                 <span className="text-2xl md:text-4xl font-extrabold text-[#0B1F3A]">{stats.affected}</span>
-                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Afectados Registrados</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Afectados registrados</span>
               </Link>
               <Link 
                 href="/hospitalizados"
@@ -223,18 +273,27 @@ export default async function Home() {
                 className="flex flex-col p-4 rounded-xl border border-gray-100 bg-white shadow-2xs hover:shadow-md hover:border-[#C0392B]/20 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
               >
                 <span className="text-2xl md:text-4xl font-extrabold text-[#C0392B]">{stats.missing}</span>
-                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Reportes de Búsqueda</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Reportes de búsqueda</span>
               </Link>
               <Link 
                 href="/rescatados"
                 className="flex flex-col p-4 rounded-xl border border-gray-100 bg-white shadow-2xs hover:shadow-md hover:border-emerald-600/20 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
               >
                 <span className="text-2xl md:text-4xl font-extrabold text-emerald-600">{stats.rescued}</span>
-                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Personas Rescatadas</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Rescatados registrados en la plataforma</span>
+              </Link>
+              <Link 
+                href="/fallecidos"
+                className="flex flex-col p-4 rounded-xl border border-gray-100 bg-white shadow-2xs hover:shadow-md hover:border-[#C0392B]/20 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]"
+              >
+                <span className="text-2xl md:text-4xl font-extrabold text-gray-800">{stats.deceased}</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase mt-0.5">Fallecidos confirmados en la plataforma</span>
               </Link>
             </div>
-            <div className="text-center mt-6 text-xs text-gray-500 font-semibold bg-gray-50/50 py-2 px-4 rounded-lg border border-gray-100/50 inline-block mx-auto">
-              Última actualización de la plataforma: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastSyncTime)}</span>
+            <div className="text-center mt-6">
+              <span className="text-xs text-gray-500 font-semibold bg-gray-50/50 py-1.5 px-3 rounded-lg border border-gray-100/50 inline-block">
+                Última actualización de la plataforma: <span className="text-gray-700 font-bold">{formatVenezuelaDateTime(lastSyncTime)}</span>
+              </span>
             </div>
           </div>
         </div>

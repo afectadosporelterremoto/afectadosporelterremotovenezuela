@@ -87,3 +87,19 @@ Para vincular la plataforma al dominio oficial **afectadosporelterremotovenezuel
      - **Registro CNAME**: Nombre `www` que apunte a `cname.vercel-dns.com`.
 4. **Validación SSL**:
    - Vercel generará y renovará automáticamente un certificado SSL Let's Encrypt de forma gratuita para tu dominio.
+
+---
+
+## 🔑 Credenciales Administrativas
+
+Para acceder al panel de administración en `/admin`:
+
+1. **Email Creado**: `admin@afectadosporelterremoto.com`
+2. **Registro de Usuarios en `admin_users`**:
+   Para registrar a un usuario administrador, primero debe registrarse o crearse la cuenta en **Supabase Auth**. Una vez obtenido el `UUID` de la cuenta de usuario en el panel de Supabase Auth, se debe insertar en la tabla `public.admin_users` utilizando la siguiente consulta SQL en el panel de Supabase:
+   ```sql
+   insert into public.admin_users (user_id, email, role)
+   values ('[EL_UUID_DE_SUPABASE_AUTH]', 'ejemplo@afectadosporelterremoto.com', 'admin');
+   ```
+3. **Cómo cambiar la contraseña**:
+   - **Vía Supabase Dashboard**: Ingrese al panel de control de Supabase > **Authentication** > **Users**, busque el correo del administrador, haga clic en los tres puntos y seleccione **Reset password** o **Change password** para ingresar una nueva clave de forma segura sin que sea visible en ningún repositorio.

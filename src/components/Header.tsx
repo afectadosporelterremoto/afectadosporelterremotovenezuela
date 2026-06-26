@@ -17,6 +17,7 @@ export default function Header() {
     { name: "Desaparecidos", href: "/desaparecidos" },
     { name: "Rescatados", href: "/rescatados" },
     { name: "Hospitalizados", href: "/hospitalizados" },
+    { name: "Fallecidos", href: "/fallecidos" },
     { name: "Historias", href: "/historias" },
     { name: "Emergencias", href: "/emergencias" },
   ];

@@ -11,7 +11,9 @@ import {
   LogOut, 
   ShieldAlert,
   ArrowLeft,
-  Building
+  Building,
+  Database,
+  Skull
 } from "lucide-react";
 import Logo from "@/components/Logo";
 
@@ -74,9 +76,11 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const sidebarLinks = [
+    { name: "Balance Oficial", href: "/admin/balance", icon: Database },
     { name: "Registros de Afectados", href: "/admin/afectados", icon: Users },
     { name: "Casos de Desaparecidos", href: "/admin/desaparecidos", icon: UserMinus },
     { name: "Hospitalizados", href: "/admin/hospitalizados", icon: Building },
+    { name: "Fallecidos", href: "/admin/fallecidos", icon: Skull },
     { name: "Personas Rescatadas", href: "/admin/rescatados", icon: HeartHandshake },
     { name: "Moderación de Historias", href: "/admin/historias", icon: BookOpen },
     { name: "Números de Emergencia", href: "/admin/emergencias", icon: Phone },
