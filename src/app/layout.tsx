@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import WelcomeModal from "@/components/WelcomeModal";
 
 // Cargar fuente Inter para estética premium
 const inter = Inter({
@@ -15,7 +14,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Afectados por el Terremoto Venezuela | Plataforma Humanitaria",
   description:
-    "Registro oficial y de búsqueda de personas afectadas, desaparecidas y rescatadas tras el terremoto en Venezuela. Centralización de contactos de emergencia, soporte de localización e historias de sobrevivientes.",
+    "Registro oficial y de búsqueda de personas afectadas, desaparecidas and rescatadas tras el terremoto en Venezuela. Centralización de contactos de emergencia, soporte de localización e historias de sobrevivientes.",
   keywords: [
     "terremoto Venezuela",
     "afectados terremoto",
@@ -41,7 +40,6 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
-        <WelcomeModal />
         <Header />
         <main className="flex-1 flex flex-col">{children}</main>
         <Footer />

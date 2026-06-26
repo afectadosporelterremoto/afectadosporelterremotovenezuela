@@ -1,22 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { X, Heart, ShieldAlert } from "lucide-react";
 import Logo from "./Logo";
 
 export default function WelcomeModal() {
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    // Verificar en localStorage si ya se ha mostrado el modal
-    const hasSeen = localStorage.getItem("terremoto_venezuela_welcome_seen");
-    if (!hasSeen) {
-      setIsOpen(true);
-    }
-  }, []);
+  const [isOpen, setIsOpen] = useState(true);
 
   const handleClose = () => {
-    localStorage.setItem("terremoto_venezuela_welcome_seen", "true");
     setIsOpen(false);
   };
 
@@ -49,16 +40,13 @@ export default function WelcomeModal() {
 
         {/* Título de solidaridad */}
         <h2 className="text-xl md:text-2xl font-black text-[#0B1F3A] tracking-tight uppercase">
-          Unidos por Venezuela
+          Fuerza Venezuela
         </h2>
 
         {/* Mensaje de apoyo */}
         <div className="mt-4 space-y-4">
           <p className="text-sm md:text-base text-gray-700 font-medium leading-relaxed">
-            En respuesta al devastador sismo que ha afectado a nuestro país, hemos habilitado esta plataforma humanitaria para el registro y la localización de ciudadanos.
-          </p>
-          <p className="text-sm md:text-base text-gray-700 font-medium leading-relaxed">
-            Expresamos nuestro más sentido pésame y condolencias a todas las familias que han perdido seres queridos en este trágico suceso. Su dolor es el dolor de toda una nación.
+            A todas las familias afectadas por el terremoto, nuestro respeto, solidaridad y acompañamiento. Nuestro pésame a quienes han perdido seres queridos y mucha fuerza para quienes siguen buscando, ayudando y resistiendo. Esta plataforma fue creada para aportar información útil, facilitar búsquedas y apoyar a quienes más lo necesitan.
           </p>
         </div>
 
@@ -74,10 +62,10 @@ export default function WelcomeModal() {
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
             onClick={handleClose}
-            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 rounded-lg bg-[#C0392B] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#A93226] transition-colors shadow-md shadow-black/10"
+            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 rounded-lg bg-[#C0392B] px-8 py-2.5 text-sm font-bold text-white hover:bg-[#A93226] transition-colors shadow-md shadow-black/10"
           >
             <Heart size={16} className="fill-white" />
-            <span>Entrar a la Plataforma</span>
+            <span>Continuar</span>
           </button>
         </div>
       </div>
